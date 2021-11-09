@@ -468,6 +468,11 @@ func (p *Parlia) snapshot(chain consensus.ChainHeaderReader, number uint64, hash
 					return nil, err
 				}
 
+					//sgj add 1105 for checking
+				for idx,address :=range validators{
+					log.Info(fmt.Sprintf("sgh-checking1--cur idx is:%d,validator's address is",  idx, address))
+
+				}
 				// new snap shot
 				snap = newSnapshot(p.config, p.signatures, number, hash, validators, p.ethAPI)
 				if err := snap.store(p.db); err != nil {
