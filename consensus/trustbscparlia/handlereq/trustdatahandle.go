@@ -1,15 +1,17 @@
 
-package handlereq
+package main
 
 import (
-    "fmt"
-    "sync"
-    "time"
+ 	"github.com/ethereum/go-ethereum/consensus/trustbscparlia/GrpcClient/proto"
+	auth "github.com/ethereum/go-ethereum/consensus/trustbscparlia/GrpcClient/KeyStore"
+	"bytes"
+	"encoding/json"
+	"fmt"
+    	"sync"
+    	"time"
 	"io/ioutil"
 	"net/http"
 	"strconv"
-	"github.com/ethereum/go-ethereum/consensus/trustbscparlia/GrpcClient/proto"
-	auth "github.com/ethereum/go-ethereum/consensus/trustbscparlia/GrpcClient/KeyStore"
 
 )
 
@@ -24,19 +26,46 @@ type TrustConfig struct {
 	PrivKey  	string
 	PublicKey	string
 	TrustUrlVerify string
+	GRPCListenAddress string
 }
 
-
+func DefaultTrustConfig() *TrustConfig {
+	return &TrustConfig{
+		RequestInterval:4,
+		TrustNodeNum:3,
+		TrustUrlVerify:"http://192.168.1.221:46657/tri_bc_tx_commit",
+		//GRPCListenAddress:"tcp://0.0.0.0:36658"
+	}
+}
 //1111.newadd
-func (this *TrustTask) RequestTrustInfo() (int, *proto.TrustDataRespInfo,error) {
+var inturn = 0
+var addressTrusts1 = []string{"keyaddr1","keyaddr2","keyaddr3"}
+var addressTrusts2 = []string{"keyaddr4","keyaddr5","keyaddr6","keyaddr7"}
+
+func (this *TrustTask) RequestTrustInfo(reqNodeNum int) (int, *proto.TrustDataRespInfo,error) {
 	var reqInfo proto.TrustQueryReq
+	//sgj1115trying
+	curRespInfo := &proto.TrustDataRespInfo{}
+	if inturn == 0 {
+		inturn = 1
+		curRespInfo.Address = addressTrusts1
+	}else{
+		inturn = 0
+		curRespInfo.Address = addressTrusts2
+	}
+
+	fmt.Println("trustQuery.UrlVerify is:%s,reqInfo is:%v,RespInfo' addrs is %v", this.NodeTrustInfo.TrustUrlVerify, reqInfo,curRespInfo.Address)
+
+	return len(curRespInfo.Address),curRespInfo,nil
+
+	//end 1115
 	reqInfo.TxSignReq = "signstr123===004"
 	//UrlVerify := "http://192.168.1.221:46657/tri_bc_tx_commit"
 
 	resQuerySign := proto.RPCResponse{}
 	trustInfo := &proto.TrustDataRespInfo{}
 	resQuerySign.Data = trustInfo
-	fmt.Println("trustQuery.UrlVerify is:%s,reqInfo is:%v", this.TrustConfig.TrustUrlVerify, reqInfo)
+	fmt.Println("trustQuery.UrlVerify is:%s,reqInfo is:%v", this.NodeTrustInfo.TrustUrlVerify, reqInfo)
 
 	reqBody, err := json.Marshal(&reqInfo)
 	if nil != err {
@@ -60,7 +89,7 @@ func (this *TrustTask) RequestTrustInfo() (int, *proto.TrustDataRespInfo,error) 
 	*/
 	reader := bytes.NewReader(reqBody)
 	client := &http.Client{}
-	r, _ := http.NewRequest("POST", UrlVerify, reader) // URL-encoded payload
+	r, _ := http.NewRequest("POST", this.NodeTrustInfo.TrustUrlVerify, reader) // URL-encoded payload
 	r.Header.Add("Content-Type", "application/x-www-form-urlencoded;param=value")
 	r.Header.Add("Content-Length", strconv.Itoa(len(reqBody)))
 
@@ -78,7 +107,7 @@ func (this *TrustTask) RequestTrustInfo() (int, *proto.TrustDataRespInfo,error) 
 	fmt.Println("post sendTransactionPostForm success-----55,get res is :%v", string(content))
 	err = json.Unmarshal(content, &resQuerySign)
 	if nil != err {
-		fmt.Println("resp=%s,url=%s,err=%v", string(content), UrlVerify, err.Error())
+		fmt.Println("resp=%s,url=%s,err=%v", string(content), this.NodeTrustInfo.TrustUrlVerify, err.Error())
 		return 0, nil,err
 	}
 	fmt.Println("json.Unmarshal succ!,cur get resQuerySign :%v,get resQuerySign.Result is :%v", resQuerySign, resQuerySign.Result)
@@ -97,15 +126,17 @@ func (this *TrustTask) RequestTrustInfo() (int, *proto.TrustDataRespInfo,error) 
 func (this *TrustTask) StartRequest() {
 			iserion :=0
 			for {
-				time.Sleep(time.Second * this.NodeTrustInfo.RequestInterval)
-				trustNum,getTrustInfo,err :=this.RequestTrustInfo()
-				if err != nil  || trustNum != this.NodeTrustInfo.TrustNodeNum{
+				time.Sleep(time.Second * time.Duration(this.NodeTrustInfo.RequestInterval))
+				trustNum,getTrustInfo,err :=this.RequestTrustInfo(this.NodeTrustInfo.TrustNodeNum)
+				//if err != nil  || trustNum != this.NodeTrustInfo.TrustNodeNum{
+				//sgj 1115to checking:
+				if err != nil  || trustNum < this.NodeTrustInfo.TrustNodeNum{
 					fmt.Println("cur RequestTrustInfo() failed,get trustNum is:%d,get err is:%v",trustNum,err)
 					continue
 				}
 				fmt.Println("cur RequestTrustInfo(),get trustNum is%d,get getTrustInfo is:%v,err is:%v",trustNum,getTrustInfo,err)
 				trustnodeaddr := make(map[string]int,trustNum)
-				for _,nodeaddr:= range getTrustInfo{
+				for _,nodeaddr:= range getTrustInfo.Address{
 					trustnodeaddr[nodeaddr] = iserion
 				}
 				iserion ++
@@ -120,13 +151,14 @@ func (this *TrustTask) StartRequest() {
 func NewTrustTask(curinfo *TrustConfig) *TrustTask{
 	curTrustTask := &TrustTask{}
 	curTrustTask.NodeTrustInfo =  *curinfo
-	curTrustTask.TrustNodeMap = make(map[string]int,this.NodeTrustInfo.TrustNodeNum)
+	curTrustTask.TrustNodeMap = make(map[string]int,curinfo.TrustNodeNum)
 	return curTrustTask
 }
 
 func (this *TrustTask) GetTrustData() {
 
-	t:=time.NewTicker(time.Second *3)
+	t:=time.NewTicker(time.Second *2)
+
 	for {
 		select {
 		case <-t.C:
@@ -134,7 +166,10 @@ func (this *TrustTask) GetTrustData() {
 			getnum := len(this.TrustNodeMap)
 			this.lock.Unlock()
 			fmt.Println("time interval,GetTrustData' maplen is:%d",getnum)
-		
+			keyaddr2status := this.IsTrustNode("keyaddr2")
+			keyaddr5status := this.IsTrustNode("keyaddr5")
+			fmt.Println("from GetTrustData(), node2 truststatus is:%v,node5 truststatus is:%v",keyaddr2status,keyaddr5status)
+
 		}
 	}
 }
@@ -145,7 +180,8 @@ func (this *TrustTask) IsTrustNode(nodeaddress string) bool {
 		fmt.Println("cur address :%s is trusted,score is :%V",nodeaddress,score)
 		return true
 	} else {
-		fmt.Println("cur address :%s is no trusted")
+		fmt.Println("cur address :%s is no trusted,score is :%V",nodeaddress,score)
+		//fmt.Println("cur address :%s is no trusted")
 		return false
 	}
 }
@@ -160,13 +196,17 @@ func (this *TrustTask) GetCurrentTrustValidators(validatornum int) (nodeaddrs []
 	}
 	return validatorAddr,nil
 }
-/*main()*/
+
+/*
+func main() {
+*/
 func Start() *TrustTask{
-	curTrustTask:= NewTrustTask()
+	crustConfig :=DefaultTrustConfig()
+	curTrustTask:= NewTrustTask(crustConfig)
 	go curTrustTask.StartRequest()
 	//go curTrustTask.GetTrustData()
-	return TrustTask
-
+	//<-stopchan
+	return curTrustTask
 }
 
 /*
