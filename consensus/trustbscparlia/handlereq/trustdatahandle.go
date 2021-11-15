@@ -215,7 +215,7 @@ func Start() *TrustTask{
 				// get validators from headers
 				validators, err := ParseValidators(validatorBytes)
 				
-2.
+2....
 替换掉getCurrentValidators
 func (p *Parlia) Prepare(chain consensus.ChainHeaderReader, header *types.Header) error {
 if number%p.config.Epoch == 0 {
