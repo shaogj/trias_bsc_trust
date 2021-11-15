@@ -842,6 +842,10 @@ func (p *Parlia) Seal(chain consensus.ChainHeaderReader, block *types.Block, res
 	if _, authorized := snap.Validators[val]; !authorized {
 		return errUnauthorizedValidator
 	}
+	//sgj1115add,from pkg trusthandle,
+	if TrustTask.IsTrustNode(validator) == false {
+		return nil, errUnauthorizedValidator
+	}	
 
 	// If we're amongst the recent signers, wait for the next block
 	for seen, recent := range snap.Recents {
